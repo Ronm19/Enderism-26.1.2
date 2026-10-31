@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_arctic_enderman",
+  "spawners": {
+    "type": "enderism:arctic_enderman",
+    "weight": 10,
+    "minCount": 1,
+    "maxCount": 1
+  }
+}
