@@ -10,9 +10,10 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
-/** Approved 80-tick paralysis support. No attack trigger, attack range, or ability cooldown is invented. */
+/** Two-second melee paralysis, alongside the reusable four-second ability hold. */
 public final class FrostParalysis extends MobEffect {
     public static final int DURATION_TICKS = 80;
+    public static final int MELEE_DURATION_TICKS = 40;
 
     public FrostParalysis() {
         super(MobEffectCategory.HARMFUL, 0x59E4FF);
@@ -24,6 +25,10 @@ public final class FrostParalysis extends MobEffect {
 
     public static boolean tryApply(ServerPlayer player, FrostEnderman source) {
         return ArcticStun.tryApplyOwned(player, source, ModEffects.FROST_PARALYSIS, DURATION_TICKS);
+    }
+
+    public static boolean tryApplyOnHit(ServerPlayer player, FrostEnderman source) {
+        return ArcticStun.tryRefreshOwnedOnHit(player, source, ModEffects.FROST_PARALYSIS, MELEE_DURATION_TICKS);
     }
 
     public static boolean isHeldBy(ServerPlayer player, FrostEnderman source) {

@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
@@ -27,7 +28,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
 
-/** #004 baseline only. Signature combat abilities will be supplied separately. */
+/** #004: successful melee strikes carry a short, vanilla fire burn. */
 public final class FireEnderman extends AbstractEnderman {
     public static final double DETECTION_RANGE = 32.0;
     public static final TagKey<Biome> OVERWORLD_SPAWN_BIOMES = TagKey.create(Registries.BIOME,
@@ -54,6 +55,15 @@ public final class FireEnderman extends AbstractEnderman {
     @Override
     protected MastermindBrain createMastermindBrain() {
         return new FireEndermanBrain(this);
+    }
+
+    @Override
+    public boolean doHurtTarget(ServerLevel level, Entity target) {
+        boolean hit = super.doHurtTarget(level, target);
+        if (hit && target.isAlive()) {
+            target.igniteForSeconds(2.0F);
+        }
+        return hit;
     }
 
     @Override

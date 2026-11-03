@@ -12,6 +12,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -26,7 +27,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.storage.ValueInput;
 
-/** #005: nighttime cold awareness. Paralysis activation awaits its approved ability rules. */
+/** #005: nighttime cold awareness, with a brief paralysis on successful melee hits. */
 public final class FrostEnderman extends AbstractEnderman {
     public static final double NORMAL_DETECTION_RANGE = 64.0;
     public static final double SNOWSTORM_DETECTION_RANGE = 74.0;
@@ -48,6 +49,15 @@ public final class FrostEnderman extends AbstractEnderman {
     @Override
     protected MastermindBrain createMastermindBrain() {
         return new FrostEndermanBrain(this);
+    }
+
+    @Override
+    public boolean doHurtTarget(ServerLevel level, Entity target) {
+        boolean hit = super.doHurtTarget(level, target);
+        if (hit && target instanceof ServerPlayer player) {
+            FrostParalysis.tryApplyOnHit(player, this);
+        }
+        return hit;
     }
 
     @Override

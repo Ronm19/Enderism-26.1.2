@@ -26,6 +26,22 @@ public final class ModItems {
             "frost_enderman_spawn_egg",
             properties -> new SpawnEggItem(properties.spawnEgg(ModEntities.FROST_ENDERMAN.get())));
 
+    public static final DeferredItem<SpawnEggItem> FOREST_ENDERMAN_SPAWN_EGG = ITEMS.registerItem(
+            "forest_enderman_spawn_egg",
+            properties -> new SpawnEggItem(properties.spawnEgg(ModEntities.FOREST_ENDERMAN.get())));
+
+    public static final DeferredItem<SpawnEggItem> STORM_ENDERMAN_SPAWN_EGG = ITEMS.registerItem(
+            "storm_enderman_spawn_egg",
+            properties -> new SpawnEggItem(properties.spawnEgg(ModEntities.STORM_ENDERMAN.get())));
+
+    public static final DeferredItem<SpawnEggItem> SAND_ENDERMAN_SPAWN_EGG = ITEMS.registerItem(
+            "sand_enderman_spawn_egg",
+            properties -> new SpawnEggItem(properties.spawnEgg(ModEntities.SAND_ENDERMAN.get())));
+
+    public static final DeferredItem<SpawnEggItem> SILVER_ENDERMAN_SPAWN_EGG = ITEMS.registerItem(
+            "silver_enderman_spawn_egg",
+            properties -> new SpawnEggItem(properties.spawnEgg(ModEntities.SILVER_ENDERMAN.get())));
+
     private ModItems() {
     }
 }

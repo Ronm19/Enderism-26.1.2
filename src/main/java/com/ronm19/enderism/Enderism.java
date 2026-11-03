@@ -5,6 +5,11 @@ import com.ronm19.enderism.entity.GrayEnderman;
 import com.ronm19.enderism.entity.ArcticEnderman;
 import com.ronm19.enderism.entity.FireEnderman;
 import com.ronm19.enderism.entity.FrostEnderman;
+import com.ronm19.enderism.entity.ForestEnderman;
+import com.ronm19.enderism.entity.StormEnderman;
+import com.ronm19.enderism.entity.SandEnderman;
+import com.ronm19.enderism.entity.SilverEnderman;
+import com.ronm19.enderism.effect.ArmorFracture;
 import com.ronm19.enderism.effect.ArcticStun;
 import com.ronm19.enderism.registry.ModCreativeModeTabs;
 import com.ronm19.enderism.registry.ModEntities;
@@ -44,9 +49,14 @@ public final class Enderism {
         modEventBus.addListener(Enderism::addCreativeItems);
         container.registerConfig(ModConfig.Type.COMMON, EnderismConfig.SPEC);
         container.registerConfig(ModConfig.Type.COMMON, ArcticEndermanConfig.SPEC, "enderism-arctic-common.toml");
+        container.registerConfig(ModConfig.Type.COMMON, ForestEndermanConfig.SPEC, "enderism-forest-common.toml");
+        container.registerConfig(ModConfig.Type.COMMON, StormEndermanConfig.SPEC, "enderism-storm-common.toml");
+        container.registerConfig(ModConfig.Type.COMMON, SandEndermanConfig.SPEC, "enderism-sand-common.toml");
+        container.registerConfig(ModConfig.Type.COMMON, SilverEndermanConfig.SPEC, "enderism-silver-common.toml");
         NeoForge.EVENT_BUS.addListener(Enderism::protectEndermenFromWater);
         NeoForge.EVENT_BUS.addListener(EnderismSpawnForcer::addToLevel);
         ArcticStun.registerEvents(NeoForge.EVENT_BUS);
+        ArmorFracture.registerEvents(NeoForge.EVENT_BUS);
     }
 
     private static void registerAttributes(EntityAttributeCreationEvent event) {
@@ -55,6 +65,10 @@ public final class Enderism {
         event.put(ModEntities.ARCTIC_ENDERMAN.get(), ArcticEnderman.createAttributes().build());
         event.put(ModEntities.FIRE_ENDERMAN.get(), FireEnderman.createAttributes().build());
         event.put(ModEntities.FROST_ENDERMAN.get(), FrostEnderman.createAttributes().build());
+        event.put(ModEntities.FOREST_ENDERMAN.get(), ForestEnderman.createAttributes().build());
+        event.put(ModEntities.STORM_ENDERMAN.get(), StormEnderman.createAttributes().build());
+        event.put(ModEntities.SAND_ENDERMAN.get(), SandEnderman.createAttributes().build());
+        event.put(ModEntities.SILVER_ENDERMAN.get(), SilverEnderman.createAttributes().build());
     }
 
     private static void registerSpawnPlacements(RegisterSpawnPlacementsEvent event) {
@@ -73,6 +87,18 @@ public final class Enderism {
         event.register(ModEntities.FROST_ENDERMAN.get(), SpawnPlacementTypes.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, FrostEnderman::checkFrostSpawnRules,
                 RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        event.register(ModEntities.FOREST_ENDERMAN.get(), SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, ForestEnderman::checkForestSpawnRules,
+                RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        event.register(ModEntities.STORM_ENDERMAN.get(), SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, StormEnderman::checkStormSpawnRules,
+                RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        event.register(ModEntities.SAND_ENDERMAN.get(), SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, SandEnderman::checkSandSpawnRules,
+                RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        event.register(ModEntities.SILVER_ENDERMAN.get(), SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, SilverEnderman::checkSilverSpawnRules,
+                RegisterSpawnPlacementsEvent.Operation.REPLACE);
     }
 
     private static void addCreativeItems(BuildCreativeModeTabContentsEvent event) {
@@ -82,6 +108,10 @@ public final class Enderism {
             event.accept(ModItems.ARCTIC_ENDERMAN_SPAWN_EGG);
             event.accept(ModItems.FIRE_ENDERMAN_SPAWN_EGG);
             event.accept(ModItems.FROST_ENDERMAN_SPAWN_EGG);
+            event.accept(ModItems.FOREST_ENDERMAN_SPAWN_EGG);
+            event.accept(ModItems.STORM_ENDERMAN_SPAWN_EGG);
+            event.accept(ModItems.SAND_ENDERMAN_SPAWN_EGG);
+            event.accept(ModItems.SILVER_ENDERMAN_SPAWN_EGG);
         }
     }
 

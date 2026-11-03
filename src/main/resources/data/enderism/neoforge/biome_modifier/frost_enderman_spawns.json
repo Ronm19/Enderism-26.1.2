@@ -1,5 +1,0 @@
-{
-  "type": "neoforge:add_spawns",
-  "biomes": "#enderism:spawns_frost_enderman",
-  "spawners": {"type": "enderism:frost_enderman", "weight": 10, "minCount": 1, "maxCount": 1}
-}

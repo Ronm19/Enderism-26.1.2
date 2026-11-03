@@ -183,12 +183,25 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
         return 20;
     }
 
+    /** Opt in only when a species' Brain supplies the complete attack interval. */
+    protected boolean brainControlsMeleeCooldown() {
+        return false;
+    }
+
     protected void initializeActuators() {
         if (this.combat != null) {
             return;
         }
         // Goal helpers are unregistered actuators. Native Brain alone chooses and ticks them.
         this.combat = new MeleeAttackGoal(this.owner, 1.0, false) {
+            @Override
+            protected boolean isTimeToAttack() {
+                // Native resetAttackCooldown hardcodes twenty ticks, even if getAttackInterval is overridden.
+                return MastermindBrain.this.brainControlsMeleeCooldown()
+                        ? !owner.getBrain().hasMemoryValue(MemoryModuleType.ATTACK_COOLING_DOWN)
+                        : super.isTimeToAttack();
+            }
+
             @Override
             protected boolean canPerformAttack(LivingEntity target) {
                 return !owner.getBrain().hasMemoryValue(MemoryModuleType.ATTACK_COOLING_DOWN)

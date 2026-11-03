@@ -1,0 +1,12 @@
+{
+  "compatibilityLevel": "JAVA_25",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "package": "com.ronm19.enderism.mixin",
+  "required": true
+}

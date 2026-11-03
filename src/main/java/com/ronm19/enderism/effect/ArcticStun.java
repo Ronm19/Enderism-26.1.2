@@ -76,8 +76,13 @@ public final class ArcticStun extends MobEffect {
         return player.hasEffect(ModEffects.ARCTIC_STUN) || player.hasEffect(ModEffects.FROST_PARALYSIS);
     }
 
+    /** Roots suppress locomotion, while the two ice stuns additionally suppress actions. */
+    public static boolean isMovementHeld(Player player) {
+        return isStunned(player) || player.hasEffect(ModEffects.FOREST_ROOTS);
+    }
+
     public static boolean canApply(ServerPlayer player) {
-        if (!eligible(player) || HOLDS.containsKey(player.getUUID()) || isStunned(player)) return false;
+        if (!eligible(player) || HOLDS.containsKey(player.getUUID()) || isMovementHeld(player)) return false;
         Recovery recovery = RECOVERY.get(player.getUUID());
         return recovery == null || recovery.server.get() != player.level().getServer()
                 || player.level().getServer().getTickCount() >= recovery.until;
@@ -102,9 +107,38 @@ public final class ArcticStun extends MobEffect {
             HOLDS.remove(player.getUUID());
             return false;
         }
-        player.stopUsingItem();
+        if (!effect.equals(ModEffects.FOREST_ROOTS)) player.stopUsingItem();
         stopVelocity(player);
-        level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(), 8, .3, .7, .3, .02);
+        if (effect.equals(ModEffects.FOREST_ROOTS)) ForestRoots.showVines(level, player, 2);
+        else level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(), 8, .3, .7, .3, .02);
+        return true;
+    }
+
+    /** A landed hit renews its own hold from now, rather than adding time or stealing another owner's hold. */
+    static boolean tryRefreshOwnedOnHit(ServerPlayer player, AbstractEnderman source, Holder<MobEffect> effect, int durationTicks) {
+        Hold hold = HOLDS.get(player.getUUID());
+        if (hold == null) return tryApplyOwned(player, source, effect, durationTicks);
+        if (hold.player.get() != player || hold.source.get() != source || !hold.effect.equals(effect)
+                || !valid(hold) || !player.hasEffect(effect) || player.isPassenger() || durationTicks < 1
+                || player.position().distanceToSqr(hold.anchor) > 16.0) return false;
+        long now = hold.level.getGameTime();
+        long until = Math.max(hold.until, now + Math.min(1200, durationTicks));
+        if (until == hold.until) return true; // Preserve an already longer ability hold.
+        int duration = (int) (until - now);
+        // Normal effect application remains cancellable; do not advance the server hold on rejection.
+        if (!player.addEffect(new MobEffectInstance(effect, duration, 0, false, false, true), source)) return false;
+        Hold renewed = new Hold(player, source, effect, hold.level, hold.anchor, until);
+        if (!valid(renewed) || !player.hasEffect(effect)) {
+            release(player.getUUID(), hold);
+            return false;
+        }
+        if (!HOLDS.replace(player.getUUID(), hold, renewed)) {
+            // An effect callback may have interrupted the encounter while applying the renewal.
+            if (!HOLDS.containsKey(player.getUUID())) player.removeEffect(effect);
+            return false;
+        }
+        if (!effect.equals(ModEffects.FOREST_ROOTS)) player.stopUsingItem();
+        stopVelocity(player);
         return true;
     }
 
@@ -168,12 +202,15 @@ public final class ArcticStun extends MobEffect {
                 release(entry.getKey(), hold);
                 continue;
             }
-            player.stopUsingItem();
+            if (!hold.effect.equals(ModEffects.FOREST_ROOTS)) player.stopUsingItem();
             player.setSprinting(false);
             stopVelocity(player);
             player.resetFallDistance();
             if (displacement > 1.0E-6) {
                 player.connection.teleport(hold.anchor.x, hold.anchor.y, hold.anchor.z, player.getYRot(), player.getXRot());
+            }
+            if (hold.effect.equals(ModEffects.FOREST_ROOTS) && now % 10 == 0) {
+                ForestRoots.showVines(hold.level, player, 1);
             }
         }
     }
@@ -193,7 +230,8 @@ public final class ArcticStun extends MobEffect {
             MinecraftServer server = player.level().getServer();
             RECOVERY.put(id, new Recovery(new WeakReference<>(server), server.getTickCount() + RECOVERY_TICKS));
             if (player.isAlive() && player.level() instanceof ServerLevel level) {
-                level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(), 3, .2, .5, .2, .01);
+                if (hold.effect.equals(ModEffects.FOREST_ROOTS)) ForestRoots.showVines(level, player, 1);
+                else level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(), 3, .2, .5, .2, .01);
             }
         }
     }
@@ -204,6 +242,7 @@ public final class ArcticStun extends MobEffect {
         if (player instanceof ServerPlayer serverPlayer) {
             serverPlayer.removeEffect(ModEffects.ARCTIC_STUN);
             serverPlayer.removeEffect(ModEffects.FROST_PARALYSIS);
+            serverPlayer.removeEffect(ModEffects.FOREST_ROOTS);
         }
     }
 
@@ -212,7 +251,7 @@ public final class ArcticStun extends MobEffect {
     private static void dimensionChanged(PlayerEvent.PlayerChangedDimensionEvent event) { clearPlayer(event.getEntity()); }
     private static void death(LivingDeathEvent event) { if (event.getEntity() instanceof Player player) clearPlayer(player); }
     private static void jump(LivingEvent.LivingJumpEvent event) {
-        if (event.getEntity() instanceof Player player && isStunned(player)) stopVelocity(player);
+        if (event.getEntity() instanceof Player player && isMovementHeld(player)) stopVelocity(player);
     }
     private static void interact(PlayerInteractEvent event) {
         if (isStunned(event.getEntity()) && event instanceof ICancellableEvent cancellable) cancellable.setCanceled(true);

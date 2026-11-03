@@ -6,6 +6,10 @@ import com.ronm19.enderism.entity.GrayEnderman;
 import com.ronm19.enderism.entity.ArcticEnderman;
 import com.ronm19.enderism.entity.FireEnderman;
 import com.ronm19.enderism.entity.FrostEnderman;
+import com.ronm19.enderism.entity.ForestEnderman;
+import com.ronm19.enderism.entity.StormEnderman;
+import com.ronm19.enderism.entity.SandEnderman;
+import com.ronm19.enderism.entity.SilverEnderman;
 import com.ronm19.enderism.registry.ModEntities;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
@@ -47,7 +51,11 @@ public final class EnderismSpawnForcer implements CustomSpawner {
             new Rule<>(ModEntities.GRAY_ENDERMAN, GrayEnderman::isSpawnTime, GrayEnderman::isSpawnHabitat),
             new Rule<>(ModEntities.ARCTIC_ENDERMAN, ArcticEnderman::isSpawnTime, ArcticEnderman::isSpawnHabitat),
             new Rule<>(ModEntities.FIRE_ENDERMAN, FireEnderman::isSpawnTime, FireEnderman::isSpawnHabitat),
-            new Rule<>(ModEntities.FROST_ENDERMAN, FrostEnderman::isSpawnTime, FrostEnderman::isSpawnHabitat));
+            new Rule<>(ModEntities.FROST_ENDERMAN, FrostEnderman::isSpawnTime, FrostEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.FOREST_ENDERMAN, ForestEnderman::isSpawnTime, ForestEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.STORM_ENDERMAN, StormEnderman::isSpawnTime, StormEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.SAND_ENDERMAN, SandEnderman::isSpawnTime, SandEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.SILVER_ENDERMAN, SilverEnderman::isSpawnTime, SilverEnderman::isSpawnHabitat));
 
     private final Map<UUID, PlayerAbsence> players = new HashMap<>();
     private long lastTick = Long.MIN_VALUE;

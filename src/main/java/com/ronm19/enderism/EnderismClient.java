@@ -5,10 +5,17 @@ import com.ronm19.enderism.client.GrayEndermanRenderer;
 import com.ronm19.enderism.client.ArcticEndermanRenderer;
 import com.ronm19.enderism.client.FireEndermanRenderer;
 import com.ronm19.enderism.client.FrostEndermanRenderer;
+import com.ronm19.enderism.client.ForestEndermanRenderer;
+import com.ronm19.enderism.client.StormEndermanRenderer;
+import com.ronm19.enderism.client.StormWeatherClient;
+import com.ronm19.enderism.client.SandEndermanRenderer;
+import com.ronm19.enderism.client.SilverEndermanRenderer;
+import com.ronm19.enderism.client.SandstormClient;
 import com.ronm19.enderism.client.ArcticStunClient;
 import com.ronm19.enderism.entity.BrownEnderman;
 import com.ronm19.enderism.registry.ModEntities;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.LightningBoltRenderer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
@@ -38,6 +45,11 @@ public final class EnderismClient {
         event.registerEntityRenderer(ModEntities.ARCTIC_ENDERMAN.get(), ArcticEndermanRenderer::new);
         event.registerEntityRenderer(ModEntities.FIRE_ENDERMAN.get(), FireEndermanRenderer::new);
         event.registerEntityRenderer(ModEntities.FROST_ENDERMAN.get(), FrostEndermanRenderer::new);
+        event.registerEntityRenderer(ModEntities.FOREST_ENDERMAN.get(), ForestEndermanRenderer::new);
+        event.registerEntityRenderer(ModEntities.STORM_ENDERMAN.get(), StormEndermanRenderer::new);
+        event.registerEntityRenderer(ModEntities.SAND_ENDERMAN.get(), SandEndermanRenderer::new);
+        event.registerEntityRenderer(ModEntities.SILVER_ENDERMAN.get(), SilverEndermanRenderer::new);
+        event.registerEntityRenderer(ModEntities.STORM_LIGHTNING.get(), LightningBoltRenderer::new);
     }
 
     @SubscribeEvent
@@ -47,6 +59,8 @@ public final class EnderismClient {
 
     @SubscribeEvent
     public static void clientTick(ClientTickEvent.Post event) {
+        StormWeatherClient.tick();
+        SandstormClient.tick();
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
         LocalPlayer player = minecraft.player;

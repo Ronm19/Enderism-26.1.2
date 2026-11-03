@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_fire_enderman_overworld",
+  "spawners": {
+    "type": "enderism:fire_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 6
+  }
+}

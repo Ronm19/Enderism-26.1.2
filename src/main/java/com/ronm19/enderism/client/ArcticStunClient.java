@@ -15,7 +15,8 @@ public final class ArcticStunClient {
         var player = Minecraft.getInstance().player;
         if (player == null) return;
         boolean stunned = player.isAlive() && !player.isCreative() && !player.isSpectator()
-                && (player.hasEffect(ModEffects.ARCTIC_STUN) || player.hasEffect(ModEffects.FROST_PARALYSIS));
+                && (player.hasEffect(ModEffects.ARCTIC_STUN) || player.hasEffect(ModEffects.FROST_PARALYSIS)
+                    || player.hasEffect(ModEffects.FOREST_ROOTS));
         if (stunned && !(player.input instanceof FrozenInput)) {
             player.input = new FrozenInput(player.input);
         } else if (!stunned && player.input instanceof FrozenInput frozen) {
