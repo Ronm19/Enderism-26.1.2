@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_bogged_enderman",
+  "spawners": {
+    "type": "enderism:bogged_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 16
+  }
+}

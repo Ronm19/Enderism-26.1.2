@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_soul_sand_enderman",
+  "spawners": {
+    "type": "enderism:soul_sand_enderman",
+    "maxCount": 2,
+    "minCount": 1,
+    "weight": 30
+  }
+}

@@ -27,7 +27,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import org.jspecify.annotations.Nullable;
 
-/** Short-lived local rain and atmospheric fog; the world's weather and post effects are untouched. */
+/** Local tempest accents layered over native server-controlled weather; this renderer owns no world-weather state. */
 @EventBusSubscriber(modid = Enderism.MOD_ID, value = Dist.CLIENT)
 public final class StormWeatherClient {
     private static final int SCAN_INTERVAL_TICKS = 10;

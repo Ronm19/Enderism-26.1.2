@@ -10,6 +10,21 @@ import com.ronm19.enderism.entity.ForestEnderman;
 import com.ronm19.enderism.entity.StormEnderman;
 import com.ronm19.enderism.entity.SandEnderman;
 import com.ronm19.enderism.entity.SilverEnderman;
+import com.ronm19.enderism.entity.PhantomEnderman;
+import com.ronm19.enderism.entity.DarkEnderman;
+import com.ronm19.enderism.entity.InfernalEnderman;
+import com.ronm19.enderism.entity.GoldenEnderman;
+import com.ronm19.enderism.entity.NightmareEnderman;
+import com.ronm19.enderism.entity.DemonEnderman;
+import com.ronm19.enderism.entity.BloodEnderman;
+import com.ronm19.enderism.entity.SpectralEnderman;
+import com.ronm19.enderism.entity.AngelEnderman;
+import com.ronm19.enderism.entity.RavagerEnderman;
+import com.ronm19.enderism.entity.EndermanGolem;
+import com.ronm19.enderism.entity.VoidEnderman;
+import com.ronm19.enderism.entity.BoggedEnderman;
+import com.ronm19.enderism.entity.SkeletonEnderman;
+import com.ronm19.enderism.entity.ZombieEnderman;
 import com.ronm19.enderism.registry.ModEntities;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
@@ -45,6 +60,9 @@ import org.jspecify.annotations.Nullable;
 public final class EnderismSpawnForcer implements CustomSpawner {
     private static final int CHECK_INTERVAL = 20;
     private static final int POSITION_ATTEMPTS = 24;
+    private static final int DARK_CANOPY_SEARCH_DEPTH = 16;
+    private static final double DARK_MIN_SPAWN_RADIUS = 28.0;
+    private static final double DARK_MAX_SPAWN_RADIUS = 48.0;
     private static final double NEARBY_RADIUS = 96.0;
     private static final List<Rule<?>> RULES = List.of(
             new Rule<>(ModEntities.BROWN_ENDERMAN, BrownEnderman::isSpawnTime, BrownEnderman::isSpawnHabitat),
@@ -55,7 +73,28 @@ public final class EnderismSpawnForcer implements CustomSpawner {
             new Rule<>(ModEntities.FOREST_ENDERMAN, ForestEnderman::isSpawnTime, ForestEnderman::isSpawnHabitat),
             new Rule<>(ModEntities.STORM_ENDERMAN, StormEnderman::isSpawnTime, StormEnderman::isSpawnHabitat),
             new Rule<>(ModEntities.SAND_ENDERMAN, SandEnderman::isSpawnTime, SandEnderman::isSpawnHabitat),
-            new Rule<>(ModEntities.SILVER_ENDERMAN, SilverEnderman::isSpawnTime, SilverEnderman::isSpawnHabitat));
+            new Rule<>(ModEntities.SILVER_ENDERMAN, SilverEnderman::isSpawnTime, SilverEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.PHANTOM_ENDERMAN, PhantomEnderman::isSpawnTime, PhantomEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.DARK_ENDERMAN, DarkEnderman::isSpawnTime, DarkEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.INFERNAL_ENDERMAN, InfernalEnderman::isSpawnTime, InfernalEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.GOLDEN_ENDERMAN, GoldenEnderman::isSpawnTime, GoldenEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.NIGHTMARE_ENDERMAN, NightmareEnderman::isSpawnTime, NightmareEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.DEMON_ENDERMAN, DemonEnderman::isSpawnTime, DemonEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.BLOOD_ENDERMAN, BloodEnderman::isSpawnTime, BloodEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.SPECTRAL_ENDERMAN, SpectralEnderman::isSpawnTime, SpectralEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.ANGEL_ENDERMAN, AngelEnderman::isSpawnTime, AngelEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.RAVAGER_ENDERMAN, RavagerEnderman::isSpawnTime, RavagerEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.ENDERMAN_GOLEM, EndermanGolem::isSpawnTime, EndermanGolem::isSpawnHabitat),
+            new Rule<>(ModEntities.VOID_ENDERMAN, VoidEnderman::isSpawnTime, VoidEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.BOGGED_ENDERMAN, BoggedEnderman::isSpawnTime, BoggedEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.SKELETON_ENDERMAN, SkeletonEnderman::isSpawnTime, SkeletonEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.ZOMBIE_ENDERMAN, ZombieEnderman::isSpawnTime, ZombieEnderman::isSpawnHabitat),
+            new Rule<>(ModEntities.SCULK_ENDERMAN, SculkEndermanSpawns::isSpawnPeriod, SculkEndermanSpawns::isSpawnHabitat),
+            new Rule<>(ModEntities.HUSK_ENDERMAN, HuskEndermanSpawns::isSpawnTime, HuskEndermanSpawns::isSpawnHabitat),
+            new Rule<>(ModEntities.VAMPIRE_ENDERMAN, VampireEndermanSpawns::isSpawnTime, VampireEndermanSpawns::isSpawnHabitat),
+            new Rule<>(ModEntities.WITHER_ENDERMAN, WitherEndermanSpawns::isSpawnTime, WitherEndermanSpawns::isSpawnHabitat),
+            new Rule<>(ModEntities.WHITE_ENDERMAN, WhiteEndermanSpawns::isSpawnTime, WhiteEndermanSpawns::isSpawnHabitat),
+            new Rule<>(ModEntities.SOUL_SAND_ENDERMAN, SoulSandEndermanSpawns::isSpawnTime, SoulSandEndermanSpawns::isSpawnHabitat));
 
     private final Map<UUID, PlayerAbsence> players = new HashMap<>();
     private long lastTick = Long.MIN_VALUE;
@@ -168,9 +207,13 @@ public final class EnderismSpawnForcer implements CustomSpawner {
 
     private static <T extends Mob> boolean trySpawn(ServerLevel level, ServerPlayer player, Rule<T> rule) {
         EntityType<T> type = rule.type.get();
+        boolean darkForestSearch = type == ModEntities.DARK_ENDERMAN.get() || type == ModEntities.VAMPIRE_ENDERMAN.get();
+        double minRadius = darkForestSearch ? DARK_MIN_SPAWN_RADIUS : 32.0;
+        double maxRadius = darkForestSearch ? DARK_MAX_SPAWN_RADIUS : 64.0;
+        int searchDepth = darkForestSearch ? DARK_CANOPY_SEARCH_DEPTH : 0;
         for (int attempt = 0; attempt < POSITION_ATTEMPTS; attempt++) {
             double angle = level.getRandom().nextDouble() * Math.PI * 2.0;
-            double radius = 32.0 + level.getRandom().nextDouble() * 32.0;
+            double radius = minRadius + level.getRandom().nextDouble() * (maxRadius - minRadius);
             int x = Mth.floor(player.getX() + Math.cos(angle) * radius);
             int z = Mth.floor(player.getZ() + Math.sin(angle) * radius);
             var chunk = level.getChunkSource().getChunkNow(x >> 4, z >> 4);
@@ -178,25 +221,24 @@ public final class EnderismSpawnForcer implements CustomSpawner {
                 continue;
             }
             BlockPos position;
-            if (level.dimension() == Level.NETHER) {
-                position = findNetherPosition(level, player, type, x, z);
+            if (type == ModEntities.SCULK_ENDERMAN.get()) {
+                position = findSculkPosition(level, player, type, x, z);
+                if (position == null) continue;
+            } else if (level.dimension() == Level.NETHER || type == ModEntities.WHITE_ENDERMAN.get()) {
+                position = findNearbyFloorPosition(level, player, type, x, z);
                 if (position == null) continue;
             } else {
-                // Preserve the existing surface search for all Overworld species.
                 int surfaceY = chunk.getHeight(SpawnPlacements.getHeightmapType(type), x, z) + 1;
                 position = new BlockPos(x, surfaceY, z);
             }
-            int y = position.getY();
             double centerX = x + 0.5;
             double centerZ = z + 0.5;
-            Vec3 center = new Vec3(centerX, y, centerZ);
-            AABB body = type.getSpawnAABB(centerX, y, centerZ);
-            if (player.distanceToSqr(center) > 64.0 * 64.0 || hasNearbyAt(level, center, type)
-                    || !safePosition(level, position, body) || !rule.habitat.test(level, position)
-                    || !SpawnPlacements.isSpawnPositionOk(type, level, position)
-                    || !SpawnPlacements.checkSpawnRules(type, level, EntitySpawnReason.NATURAL, position, level.getRandom())) {
+            position = findSpawnCandidate(level, player, rule, type, position, centerX, centerZ, searchDepth);
+            if (position == null) {
                 continue;
             }
+            int y = position.getY();
+            Vec3 center = new Vec3(centerX, y, centerZ);
             T mob = type.create(level, EntitySpawnReason.NATURAL);
             if (mob == null) {
                 return false;
@@ -226,8 +268,36 @@ public final class EnderismSpawnForcer implements CustomSpawner {
         return false;
     }
 
-    /** Bounded cave-floor search; a Nether heightmap would select the inaccessible bedrock roof. */
-    private static <T extends Mob> @Nullable BlockPos findNetherPosition(ServerLevel level, ServerPlayer player,
+    private static <T extends Mob> @Nullable BlockPos findSpawnCandidate(
+            ServerLevel level, ServerPlayer player, Rule<T> rule, EntityType<T> type,
+            BlockPos start, double centerX, double centerZ, int searchDepth) {
+        // The heightmap can land on wood above a clearing. Check the nearby ground under it too.
+        int minY = Math.max(level.getMinY() + 1, start.getY() - searchDepth);
+        BlockPos.MutableBlockPos feet = start.mutable();
+        for (int y = start.getY(); y >= minY; y--) {
+            feet.setY(y);
+            if (isSpawnCandidate(level, player, rule, type, feet, centerX, centerZ)) {
+                return feet.immutable();
+            }
+        }
+        return null;
+    }
+
+    private static <T extends Mob> boolean isSpawnCandidate(
+            ServerLevel level, ServerPlayer player, Rule<T> rule, EntityType<T> type,
+            BlockPos position, double centerX, double centerZ) {
+        int y = position.getY();
+        Vec3 center = new Vec3(centerX, y, centerZ);
+        return player.distanceToSqr(center) <= 64.0 * 64.0
+                && SpawnPlacements.isSpawnPositionOk(type, level, position)
+                && !hasNearbyAt(level, center, type)
+                && safePosition(level, position, type.getSpawnAABB(centerX, y, centerZ))
+                && rule.habitat.test(level, position)
+                && SpawnPlacements.checkSpawnRules(type, level, EntitySpawnReason.NATURAL, position, level.getRandom());
+    }
+
+    /** Bounded floor search near the player, avoiding Nether roofs and tall Jungle canopies. */
+    private static <T extends Mob> @Nullable BlockPos findNearbyFloorPosition(ServerLevel level, ServerPlayer player,
                                                                        EntityType<T> type, int x, int z) {
         int headroom = Mth.ceil(type.getHeight());
         if (player.blockPosition().getY() >= level.getMinY() + level.dimensionType().logicalHeight()) return null;
@@ -258,6 +328,22 @@ public final class EnderismSpawnForcer implements CustomSpawner {
             if (!NaturalSpawner.isValidEmptySpawnBlock(level, cell, state, state.getFluidState(), type)) return false;
         }
         return true;
+    }
+
+    /** Ancient City floors are underground; inspect only a small band near the player's standing height. */
+    private static <T extends Mob> @Nullable BlockPos findSculkPosition(ServerLevel level, ServerPlayer player,
+                                                                      EntityType<T> type, int x, int z) {
+        int center = player.blockPosition().getY();
+        int headroom = Mth.ceil(type.getHeight());
+        for (int distance = 0; distance <= 16; distance++) {
+            for (int direction : distance == 0 ? new int[] { 1 } : new int[] { 1, -1 }) {
+                int y = center + distance * direction;
+                if (y <= level.getMinY() || y + headroom >= level.getMaxY()) continue;
+                BlockPos feet = new BlockPos(x, y, z);
+                if (SculkEndermanSpawns.isUndergroundHabitat(level, feet) && emptyNetherStandingPosition(level, type, feet, headroom)) return feet;
+            }
+        }
+        return null;
     }
 
     private static boolean safePosition(ServerLevel level, BlockPos position, AABB body) {

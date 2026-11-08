@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_golden_enderman",
+  "spawners": {
+    "type": "enderism:golden_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 18
+  }
+}

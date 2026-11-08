@@ -1,7 +1,9 @@
 package com.ronm19.enderism.entity;
 
 import com.ronm19.enderism.entity.ai.MastermindBrain;
+import com.ronm19.enderism.CombatBalanceConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
@@ -9,6 +11,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -22,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 public abstract class AbstractEnderman extends EnderMan {
     private MastermindBrain mastermindBrain;
     private long nextTeleportAttempt;
+    private long committedMeleeAttempts;
 
     protected AbstractEnderman(EntityType<? extends AbstractEnderman> type, Level level) {
         super(type, level);
@@ -59,6 +63,24 @@ public abstract class AbstractEnderman extends EnderMan {
     }
 
     @Override
+    protected AABB getAttackBoundingBox(double horizontalExpansion) {
+        double reach = CombatBalanceConfig.enabled() && this.getActiveItem().get(DataComponents.ATTACK_RANGE) == null
+                ? CombatBalanceConfig.meleeReachBonus() : 0.0;
+        return super.getAttackBoundingBox(horizontalExpansion + reach);
+    }
+
+    /** Counts physical attempts, including native shield blocks and canceled damage. */
+    public final long committedMeleeAttempts() {
+        return this.committedMeleeAttempts;
+    }
+
+    @Override
+    public boolean doHurtTarget(ServerLevel level, Entity target) {
+        this.committedMeleeAttempts++;
+        return super.doHurtTarget(level, target);
+    }
+
+    @Override
     protected void customServerAiStep(ServerLevel level) {
         this.getBrain().tick(level, this);
         // Keep vanilla idle daylight escape from overriding an active encounter.
@@ -91,8 +113,19 @@ public abstract class AbstractEnderman extends EnderMan {
             return false;
         }
         this.nextTeleportAttempt = level.getGameTime() + Math.max(1, this.teleportAttemptCooldownTicks());
+        return this.teleportToValidatedGround(level, requested, maximumDownwardSearch, false);
+    }
+
+    /** Passive recovery has its own species-owned retry budget; active cooldowns cannot veto survival. */
+    protected final boolean trySafeRecoveryTeleport(Vec3 requested, int maximumDownwardSearch) {
+        if (!(this.level() instanceof ServerLevel level) || !this.isAlive() || this.isRemoved()
+                || this.isPassenger() || this.isVehicle()) return false;
+        return this.teleportToValidatedGround(level, requested, maximumDownwardSearch, true);
+    }
+
+    private boolean teleportToValidatedGround(ServerLevel level, Vec3 requested, int maximumDownwardSearch, boolean recovery) {
         int searchLimit = Mth.clamp(maximumDownwardSearch, 0, 32);
-        Vec3 destination = this.findSafeStandingPosition(level, requested, searchLimit);
+        Vec3 destination = this.findSafeStandingPosition(level, requested, searchLimit, recovery);
         if (destination == null) {
             return false;
         }
@@ -101,8 +134,8 @@ public abstract class AbstractEnderman extends EnderMan {
             return false;
         }
         // Listeners may change the destination. Validate that final position before any move/world access.
-        destination = this.findSafeStandingPosition(level, event.getTarget(), searchLimit);
-        if (destination == null) {
+        destination = this.findSafeStandingPosition(level, event.getTarget(), searchLimit, recovery);
+        if (destination == null || !this.isSpeciesTeleportDestinationValid(level, destination)) {
             return false;
         }
         Vec3 oldPosition = this.position();
@@ -119,14 +152,42 @@ public abstract class AbstractEnderman extends EnderMan {
         return true;
     }
 
-    private @Nullable Vec3 findSafeStandingPosition(ServerLevel level, Vec3 requested, int searchLimit) {
+    /** Species may retain extra terrain constraints after teleport listeners redirect a move. */
+    protected boolean isSpeciesTeleportDestinationValid(ServerLevel level, Vec3 destination) {
+        return true;
+    }
+
+    /** Read-only planning; the actual teleport still validates its event-adjusted destination. */
+    protected final @Nullable Vec3 findSafeTeleportDestination(Vec3 requested, int maximumDownwardSearch) {
+        if (!(this.level() instanceof ServerLevel level) || !this.isAlive() || this.isRemoved()
+                || this.isPassenger() || this.isVehicle()) return null;
+        Vec3 destination = this.findSafeStandingPosition(level, requested, Mth.clamp(maximumDownwardSearch, 0, 32), false);
+        return destination != null && this.isSpeciesTeleportDestinationValid(level, destination) ? destination : null;
+    }
+
+    /** Only the vertical range differs: a validated remembered surface can be far above a falling entity. */
+    protected final @Nullable Vec3 findSafeRecoveryDestination(Vec3 requested, int maximumDownwardSearch) {
+        if (!(this.level() instanceof ServerLevel level) || !this.isAlive() || this.isRemoved()
+                || this.isPassenger() || this.isVehicle()) return null;
+        Vec3 destination = this.findSafeStandingPosition(level, requested, Mth.clamp(maximumDownwardSearch, 0, 32), true);
+        return destination != null && this.isSpeciesTeleportDestinationValid(level, destination) ? destination : null;
+    }
+
+    private boolean withinTeleportRange(Vec3 position, boolean recovery) {
+        if (!recovery) return this.position().distanceToSqr(position) <= 64.0 * 64.0;
+        double dx = position.x - this.getX(), dz = position.z - this.getZ();
+        return Double.isFinite(this.getY()) && dx * dx + dz * dz <= 128.0 * 128.0;
+    }
+
+    private @Nullable Vec3 findSafeStandingPosition(ServerLevel level, Vec3 requested, int searchLimit, boolean recovery) {
         if (!Double.isFinite(requested.x) || !Double.isFinite(requested.y) || !Double.isFinite(requested.z)
-                || this.position().distanceToSqr(requested) > 64.0 * 64.0
+                || !this.withinTeleportRange(requested, recovery)
                 || requested.y < level.getMinY() + 1 || requested.y + this.getBbHeight() > level.getMaxY()) {
             return null;
         }
         BlockPos feet = BlockPos.containing(requested);
-        if (!level.hasChunkAt(feet) || !level.getWorldBorder().isWithinBounds(feet)) {
+        if (level.getChunkSource().getChunkNow(feet.getX() >> 4, feet.getZ() >> 4) == null
+                || !level.getWorldBorder().isWithinBounds(feet)) {
             return null;
         }
         int searched = 0;
@@ -140,7 +201,7 @@ public abstract class AbstractEnderman extends EnderMan {
             return null;
         }
         Vec3 position = new Vec3(requested.x, feet.getY(), requested.z);
-        if (this.position().distanceToSqr(position) > 64.0 * 64.0) {
+        if (!this.withinTeleportRange(position, recovery)) {
             return null;
         }
         AABB box = this.getBoundingBox().move(position.subtract(this.position()));
@@ -148,7 +209,7 @@ public abstract class AbstractEnderman extends EnderMan {
         BlockPos maximum = BlockPos.containing(box.maxX, box.maxY, box.maxZ);
         long cells = (long) (maximum.getX() - minimum.getX() + 1)
                 * (maximum.getY() - minimum.getY() + 1) * (maximum.getZ() - minimum.getZ() + 1);
-        if (cells > 128L || !level.getWorldBorder().isWithinBounds(box) || !level.hasChunksAt(minimum, maximum)
+        if (cells > 128L || !level.getWorldBorder().isWithinBounds(box) || !areTeleportChunksReady(level, minimum, maximum)
                 || !level.noCollision(this, box) || level.containsAnyLiquid(box)) {
             return null;
         }
@@ -161,6 +222,15 @@ public abstract class AbstractEnderman extends EnderMan {
         return position;
     }
 
+    private static boolean areTeleportChunksReady(ServerLevel level, BlockPos minimum, BlockPos maximum) {
+        for (int x = minimum.getX() >> 4; x <= maximum.getX() >> 4; x++) {
+            for (int z = minimum.getZ() >> 4; z <= maximum.getZ() >> 4; z++) {
+                if (level.getChunkSource().getChunkNow(x, z) == null) return false;
+            }
+        }
+        return true;
+    }
+
     private boolean isTeleportHazard(BlockState state) {
         return !state.getFluidState().isEmpty() || state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE)
                 || state.is(Blocks.CAMPFIRE) || state.is(Blocks.SOUL_CAMPFIRE)
@@ -169,7 +239,20 @@ public abstract class AbstractEnderman extends EnderMan {
     }
 
     @Override
+    public void setNoAi(boolean value) {
+        super.setNoAi(value);
+        if (value && this.mastermindBrain != null) this.mastermindBrain.groupTactics().clear();
+    }
+
+    @Override
+    public void die(DamageSource source) {
+        super.die(source);
+        if (!this.isAlive() && this.mastermindBrain != null) this.mastermindBrain.groupTactics().clear();
+    }
+
+    @Override
     public void remove(Entity.RemovalReason reason) {
+        if (this.mastermindBrain != null) this.mastermindBrain.groupTactics().clear();
         if (this.level() instanceof ServerLevel level) {
             this.getBrain().stopAll(level, this);
         } else if (this.mastermindBrain != null) {

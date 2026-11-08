@@ -1,0 +1,12 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": [
+    "minecraft:badlands"
+  ],
+  "spawners": {
+    "type": "enderism:husk_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 8
+  }
+}

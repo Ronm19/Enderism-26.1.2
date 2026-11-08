@@ -1,6 +1,6 @@
 package com.ronm19.enderism.client;
 
-import com.ronm19.enderism.registry.ModEffects;
+import com.ronm19.enderism.effect.ArcticStun;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.world.entity.player.Input;
@@ -15,8 +15,7 @@ public final class ArcticStunClient {
         var player = Minecraft.getInstance().player;
         if (player == null) return;
         boolean stunned = player.isAlive() && !player.isCreative() && !player.isSpectator()
-                && (player.hasEffect(ModEffects.ARCTIC_STUN) || player.hasEffect(ModEffects.FROST_PARALYSIS)
-                    || player.hasEffect(ModEffects.FOREST_ROOTS));
+                && ArcticStun.isMovementHeld(player);
         if (stunned && !(player.input instanceof FrozenInput)) {
             player.input = new FrozenInput(player.input);
         } else if (!stunned && player.input instanceof FrozenInput frozen) {

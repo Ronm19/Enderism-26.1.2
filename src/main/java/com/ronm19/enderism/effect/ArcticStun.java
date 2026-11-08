@@ -76,9 +76,9 @@ public final class ArcticStun extends MobEffect {
         return player.hasEffect(ModEffects.ARCTIC_STUN) || player.hasEffect(ModEffects.FROST_PARALYSIS);
     }
 
-    /** Roots suppress locomotion, while the two ice stuns additionally suppress actions. */
+    /** Roots and gold suppress locomotion, while the two ice stuns additionally suppress actions. */
     public static boolean isMovementHeld(Player player) {
-        return isStunned(player) || player.hasEffect(ModEffects.FOREST_ROOTS);
+        return isStunned(player) || player.hasEffect(ModEffects.FOREST_ROOTS) || player.hasEffect(ModEffects.GOLDEN_STUN);
     }
 
     public static boolean canApply(ServerPlayer player) {
@@ -94,11 +94,17 @@ public final class ArcticStun extends MobEffect {
 
     /** Shared ownership/lifecycle support; species attack rules are deliberately outside this effect engine. */
     static boolean tryApplyOwned(ServerPlayer player, AbstractEnderman source, Holder<MobEffect> effect, int durationTicks) {
+        return tryApplyOwned(player, source, effect, durationTicks, RECOVERY_TICKS);
+    }
+
+    static boolean tryApplyOwned(ServerPlayer player, AbstractEnderman source, Holder<MobEffect> effect,
+                                 int durationTicks, int recoveryTicks) {
         if (!canApply(player) || !source.isAlive() || source.isRemoved() || source.level() != player.level()
                 || player.isPassenger() || durationTicks < 1) return false;
         ServerLevel level = (ServerLevel) player.level();
         int duration = Math.min(1200, durationTicks);
-        Hold hold = new Hold(player, source, effect, level, player.position(), level.getGameTime() + duration);
+        Hold hold = new Hold(player, source, effect, level, player.position(), level.getGameTime() + duration,
+                Math.max(0, recoveryTicks));
         // Reuse the existing operational safety checks before reporting a successful application.
         if (!valid(hold)) return false;
         HOLDS.put(player.getUUID(), hold);
@@ -107,10 +113,9 @@ public final class ArcticStun extends MobEffect {
             HOLDS.remove(player.getUUID());
             return false;
         }
-        if (!effect.equals(ModEffects.FOREST_ROOTS)) player.stopUsingItem();
+        if (suppressesActions(effect)) player.stopUsingItem();
         stopVelocity(player);
-        if (effect.equals(ModEffects.FOREST_ROOTS)) ForestRoots.showVines(level, player, 2);
-        else level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(), 8, .3, .7, .3, .02);
+        showHoldParticles(level, player, effect, true);
         return true;
     }
 
@@ -127,7 +132,7 @@ public final class ArcticStun extends MobEffect {
         int duration = (int) (until - now);
         // Normal effect application remains cancellable; do not advance the server hold on rejection.
         if (!player.addEffect(new MobEffectInstance(effect, duration, 0, false, false, true), source)) return false;
-        Hold renewed = new Hold(player, source, effect, hold.level, hold.anchor, until);
+        Hold renewed = new Hold(player, source, effect, hold.level, hold.anchor, until, hold.recoveryTicks);
         if (!valid(renewed) || !player.hasEffect(effect)) {
             release(player.getUUID(), hold);
             return false;
@@ -137,7 +142,7 @@ public final class ArcticStun extends MobEffect {
             if (!HOLDS.containsKey(player.getUUID())) player.removeEffect(effect);
             return false;
         }
-        if (!effect.equals(ModEffects.FOREST_ROOTS)) player.stopUsingItem();
+        if (suppressesActions(effect)) player.stopUsingItem();
         stopVelocity(player);
         return true;
     }
@@ -202,7 +207,7 @@ public final class ArcticStun extends MobEffect {
                 release(entry.getKey(), hold);
                 continue;
             }
-            if (!hold.effect.equals(ModEffects.FOREST_ROOTS)) player.stopUsingItem();
+            if (suppressesActions(hold.effect)) player.stopUsingItem();
             player.setSprinting(false);
             stopVelocity(player);
             player.resetFallDistance();
@@ -211,7 +216,24 @@ public final class ArcticStun extends MobEffect {
             }
             if (hold.effect.equals(ModEffects.FOREST_ROOTS) && now % 10 == 0) {
                 ForestRoots.showVines(hold.level, player, 1);
+            } else if (hold.effect.equals(ModEffects.GOLDEN_STUN) && now % 10 == 0) {
+                GoldenStun.showGilding(hold.level, player, 3);
             }
+        }
+    }
+
+    private static boolean suppressesActions(Holder<MobEffect> effect) {
+        return effect.equals(ModEffects.ARCTIC_STUN) || effect.equals(ModEffects.FROST_PARALYSIS);
+    }
+
+    private static void showHoldParticles(ServerLevel level, ServerPlayer player, Holder<MobEffect> effect, boolean start) {
+        if (effect.equals(ModEffects.FOREST_ROOTS)) {
+            ForestRoots.showVines(level, player, start ? 2 : 1);
+        } else if (effect.equals(ModEffects.GOLDEN_STUN)) {
+            GoldenStun.showGilding(level, player, start ? 12 : 4);
+        } else {
+            level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(),
+                    start ? 8 : 3, start ? .3 : .2, start ? .7 : .5, start ? .3 : .2, start ? .02 : .01);
         }
     }
 
@@ -228,10 +250,9 @@ public final class ArcticStun extends MobEffect {
         if (player != null) {
             player.removeEffect(hold.effect);
             MinecraftServer server = player.level().getServer();
-            RECOVERY.put(id, new Recovery(new WeakReference<>(server), server.getTickCount() + RECOVERY_TICKS));
+            RECOVERY.put(id, new Recovery(new WeakReference<>(server), server.getTickCount() + hold.recoveryTicks));
             if (player.isAlive() && player.level() instanceof ServerLevel level) {
-                if (hold.effect.equals(ModEffects.FOREST_ROOTS)) ForestRoots.showVines(level, player, 1);
-                else level.sendParticles(ParticleTypes.SNOWFLAKE, player.getX(), player.getY() + 1, player.getZ(), 3, .2, .5, .2, .01);
+                showHoldParticles(level, player, hold.effect, false);
             }
         }
     }
@@ -243,6 +264,7 @@ public final class ArcticStun extends MobEffect {
             serverPlayer.removeEffect(ModEffects.ARCTIC_STUN);
             serverPlayer.removeEffect(ModEffects.FROST_PARALYSIS);
             serverPlayer.removeEffect(ModEffects.FOREST_ROOTS);
+            serverPlayer.removeEffect(ModEffects.GOLDEN_STUN);
         }
     }
 
@@ -288,10 +310,10 @@ public final class ArcticStun extends MobEffect {
     }
 
     private record Hold(WeakReference<ServerPlayer> player, WeakReference<AbstractEnderman> source,
-                        Holder<MobEffect> effect, ServerLevel level, Vec3 anchor, long until) {
+                        Holder<MobEffect> effect, ServerLevel level, Vec3 anchor, long until, int recoveryTicks) {
         private Hold(ServerPlayer player, AbstractEnderman source, Holder<MobEffect> effect,
-                     ServerLevel level, Vec3 anchor, long until) {
-            this(new WeakReference<>(player), new WeakReference<>(source), effect, level, anchor, until);
+                     ServerLevel level, Vec3 anchor, long until, int recoveryTicks) {
+            this(new WeakReference<>(player), new WeakReference<>(source), effect, level, anchor, until, recoveryTicks);
         }
     }
     private record Recovery(WeakReference<MinecraftServer> server, int until) {

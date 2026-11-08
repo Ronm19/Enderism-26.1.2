@@ -5,6 +5,7 @@ import com.ronm19.enderism.effect.ArmorFracture;
 import com.ronm19.enderism.effect.ArcticStun;
 import com.ronm19.enderism.effect.FrostParalysis;
 import com.ronm19.enderism.effect.ForestRoots;
+import com.ronm19.enderism.effect.GoldenStun;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -19,6 +20,8 @@ public final class ModEffects {
             EFFECTS.register("forest_roots", ForestRoots::new);
     public static final DeferredHolder<MobEffect, ArmorFracture> ARMOR_FRACTURE =
             EFFECTS.register("armor_fracture", ArmorFracture::new);
+    public static final DeferredHolder<MobEffect, GoldenStun> GOLDEN_STUN =
+            EFFECTS.register("golden_stun", GoldenStun::new);
 
     private ModEffects() {
     }

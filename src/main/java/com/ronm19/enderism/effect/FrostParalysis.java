@@ -27,6 +27,11 @@ public final class FrostParalysis extends MobEffect {
         return ArcticStun.tryApplyOwned(player, source, ModEffects.FROST_PARALYSIS, DURATION_TICKS);
     }
 
+    /** A warned ability may upgrade its own shorter melee hold, never another source's hold. */
+    public static boolean tryApplyAbility(ServerPlayer player, FrostEnderman source) {
+        return ArcticStun.tryRefreshOwnedOnHit(player, source, ModEffects.FROST_PARALYSIS, DURATION_TICKS);
+    }
+
     public static boolean tryApplyOnHit(ServerPlayer player, FrostEnderman source) {
         return ArcticStun.tryRefreshOwnedOnHit(player, source, ModEffects.FROST_PARALYSIS, MELEE_DURATION_TICKS);
     }

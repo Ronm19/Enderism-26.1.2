@@ -17,9 +17,13 @@ import net.neoforged.neoforge.data.event.GatherDataEvent;
 @EventBusSubscriber(modid = Enderism.MOD_ID)
 public final class EnderismDataGenerators {
     public static final List<String> VARIANTS = List.of(
-            "brown", "gray", "arctic", "fire", "frost", "forest", "storm", "sand", "silver");
+            "brown", "gray", "arctic", "fire", "frost", "forest", "storm", "sand", "silver", "phantom", "dark", "infernal", "golden", "nightmare", "demon", "blood", "spectral", "angel", "ravager", "enderman_golem", "void", "bogged", "skeleton", "zombie", "sculk", "husk", "vampire", "wither", "white", "soul_sand");
 
     private EnderismDataGenerators() {}
+
+    public static String entityId(String variant) {
+        return variant.equals("enderman_golem") ? variant : variant + "_enderman";
+    }
 
     @SubscribeEvent
     public static void gather(GatherDataEvent.Client event) {

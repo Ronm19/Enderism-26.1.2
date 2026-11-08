@@ -1,9 +1,17 @@
 {
+  "client": [
+    "client.EndermanParticleMixin"
+  ],
   "compatibilityLevel": "JAVA_25",
   "injectors": {
     "defaultRequire": 1
   },
-  "mixins": [],
+  "mixins": [
+    "raid.RaidMixin",
+    "village.IronGolemMixin",
+    "entity.VoidEndermanDamageMixin",
+    "entity.WardenSculkAllyMixin"
+  ],
   "overwrites": {
     "requireAnnotations": true
   },

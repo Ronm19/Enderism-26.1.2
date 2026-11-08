@@ -152,8 +152,9 @@ public final class ArcticEnderman extends AbstractEnderman {
     @Override
     public void travel(Vec3 input) {
         if (this.isAbilityWindingUp() || this.isObserving()) {
-            // Suspend only this phase's travel; no persistent NoGravity or movement-attribute changes to leak on reload.
-            this.setDeltaMovement(Vec3.ZERO);
+            // Brace horizontal movement while native travel still applies gravity and collisions.
+            this.setDeltaMovement(0, this.getDeltaMovement().y, 0);
+            super.travel(Vec3.ZERO);
             return;
         }
         super.travel(input);

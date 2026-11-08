@@ -1,5 +1,8 @@
 package com.ronm19.enderism.entity.ai;
 
+import com.ronm19.enderism.FrostEndermanConfig;
+import com.ronm19.enderism.entity.FrostEnderman.CombatPhase;
+import java.lang.ref.WeakReference;
 import com.ronm19.enderism.effect.FrostParalysis;
 import com.ronm19.enderism.entity.AbstractEnderman;
 import com.ronm19.enderism.entity.FrostEnderman;
@@ -11,6 +14,8 @@ import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.jspecify.annotations.Nullable;
 
 /** Sampled cold awareness feeding the existing native Brain's pursuit and investigation actuators. */
@@ -24,6 +29,9 @@ public final class FrostEndermanBrain extends MastermindBrain {
     private long nextDetectionAt;
     private long nextPathAt;
     private double awarenessRange = FrostEnderman.NORMAL_DETECTION_RANGE;
+    private @Nullable WeakReference<LivingEntity> pendingTarget;
+    private long phaseEndsAt,nextParalysisAt,nextHypothermiaAt,actionEpoch,encounterStartedAt=-1;
+    private boolean paralysisRelease,hypothermiaRelease;
 
     public FrostEndermanBrain(FrostEnderman owner) {
         super(owner);
@@ -32,6 +40,52 @@ public final class FrostEndermanBrain extends MastermindBrain {
 
     @Override
     protected int memoryTicks() { return LOCATION_MEMORY_TICKS; }
+    @Override protected int meleeCooldownTicks(){return FrostEndermanConfig.frostStrikeCooldownTicks();}
+    @Override protected boolean brainControlsMeleeCooldown(){return true;}
+    public long getActionEpoch(){return this.actionEpoch;}
+    public boolean hasPendingAbility(){return this.frost.getCombatPhase()!=CombatPhase.IDLE;}
+    public @Nullable LivingEntity getPendingTarget(){return this.pendingTarget==null?null:this.pendingTarget.get();}
+    public long nextParalysisReadyAt(){return this.nextParalysisAt;}
+    public long nextHypothermiaReadyAt(){return this.nextHypothermiaAt;}
+    private boolean mayCast(ServerLevel level,LivingEntity target,double range){return this.owner.level()==level&&!this.frost.isResolvingAction()&&!this.hasPendingAbility()&&this.frost.canCastOn(target,range)&&!this.owner.isPassenger()&&!this.owner.isVehicle();}
+    public boolean tryBeginParalysis(ServerLevel level,ServerPlayer target,long now){
+        if(now<this.nextParalysisAt||!this.mayCast(level,target,FrostEndermanConfig.paralysisRange())
+                ||!FrostParalysis.canApply(target)&&!FrostParalysis.isHeldBy(target,this.frost))return false;
+        var current=target.getEffect(com.ronm19.enderism.registry.ModEffects.FROST_PARALYSIS);
+        if(FrostParalysis.isHeldBy(target,this.frost)&&(current==null||current.getDuration()<=FrostEndermanConfig.paralysisWindupTicks()+1))return false;
+        this.beginCast(level,target,CombatPhase.PARALYSIS_WINDUP,now+FrostEndermanConfig.paralysisWindupTicks());
+        this.nextParalysisAt=now+FrostEndermanConfig.paralysisCooldownTicks();return true;
+    }
+    public boolean tryBeginHypothermia(ServerLevel level,LivingEntity target,long now){
+        if(now<this.nextHypothermiaAt||!this.mayCast(level,target,FrostEndermanConfig.hypothermiaRadius()))return false;
+        this.beginCast(level,target,CombatPhase.HYPOTHERMIA_WINDUP,now+FrostEndermanConfig.hypothermiaWindupTicks());
+        this.nextHypothermiaAt=now+FrostEndermanConfig.hypothermiaCooldownTicks();return true;
+    }
+    private void beginCast(ServerLevel level,LivingEntity target,CombatPhase phase,long end){
+        this.actionEpoch++;this.stopCombat();this.stopAmbient();this.stopFloating();this.clearTarget();this.owner.getNavigation().stop();
+        this.owner.setDeltaMovement(0,this.owner.getDeltaMovement().y,0);this.pendingTarget=new WeakReference<>(target);this.phaseEndsAt=end;
+        this.frost.setHuntState(FrostEnderman.HuntState.PURSUING);this.frost.setCombatPhase(phase,end);this.frost.abilityWarning(level,phase);
+    }
+    public boolean isParalysisReleaseFrame(ServerPlayer target){return this.paralysisRelease&&this.getPendingTarget()==target&&this.frost.getCombatPhase()==CombatPhase.PARALYSIS&&this.owner.isAlive()&&!this.owner.isRemoved()&&!this.owner.isNoAi();}
+    public boolean isHypothermiaReleaseFrame(){return this.hypothermiaRelease&&this.frost.getCombatPhase()==CombatPhase.HYPOTHERMIA&&this.owner.isAlive()&&!this.owner.isRemoved()&&!this.owner.isNoAi();}
+    private boolean tickCast(ServerLevel level,long now){
+        CombatPhase phase=this.frost.getCombatPhase();if(phase==CombatPhase.IDLE)return false;
+        this.owner.getNavigation().stop();this.owner.setDeltaMovement(0,this.owner.getDeltaMovement().y,0);
+        if(phase==CombatPhase.RECOVERY){if(now>=this.phaseEndsAt)this.frost.setCombatPhase(CombatPhase.IDLE,0);return true;}
+        if(phase==CombatPhase.PARALYSIS||phase==CombatPhase.HYPOTHERMIA){if(now>=this.phaseEndsAt){this.pendingTarget=null;this.phaseEndsAt=now+FrostEndermanConfig.recoveryTicks();this.frost.setCombatPhase(CombatPhase.RECOVERY,this.phaseEndsAt);}return true;}
+        LivingEntity target=this.getPendingTarget();double range=phase==CombatPhase.PARALYSIS_WINDUP?FrostEndermanConfig.paralysisRange():FrostEndermanConfig.hypothermiaRadius();
+        if(!this.frost.canCastOn(target,range)||this.owner.isPassenger()||this.owner.isVehicle()){this.clearEncounter();return true;}
+        this.owner.getLookControl().setLookAt(target,35,25);if(now<this.phaseEndsAt)return true;
+        long transaction=this.actionEpoch;
+        if(phase==CombatPhase.PARALYSIS_WINDUP&&target instanceof ServerPlayer player){
+            this.frost.setCombatPhase(CombatPhase.PARALYSIS,now+4);this.paralysisRelease=true;
+            try{this.frost.releaseFrozenParalysis(level,player);}finally{this.paralysisRelease=false;}
+        }else if(phase==CombatPhase.HYPOTHERMIA_WINDUP){
+            this.frost.setCombatPhase(CombatPhase.HYPOTHERMIA,now+4);this.hypothermiaRelease=true;
+            try{this.frost.releaseHypothermia(level);}finally{this.hypothermiaRelease=false;}
+        }
+        if(this.actionEpoch==transaction)this.phaseEndsAt=now+4;return true;
+    }
 
     @Override
     protected boolean isLegalThreat(@Nullable LivingEntity target) {
@@ -52,13 +106,16 @@ public final class FrostEndermanBrain extends MastermindBrain {
     @Override
     protected void tick(ServerLevel level, AbstractEnderman body, long now) {
         this.initializeActuators();
+        if(this.owner.isNoAi()||!this.owner.isAlive()||this.owner.isRemoved()){this.clearEncounter();return;}
         if (this.sensedPlayer != null && !this.isLegalThreat(this.sensedPlayer)) this.clearEncounter();
+        if(this.tickCast(level,now))return;
         if (now >= this.nextDetectionAt) {
             this.nextDetectionAt = now + SENSOR_INTERVAL_TICKS;
             this.samplePresence(level, now);
         }
         LivingEntity visible = this.isVisibleThreat(this.sensedPlayer) ? this.sensedPlayer : this.observeThreat();
         if (visible != null) {
+            if(this.encounterStartedAt<0)this.encounterStartedAt=now;
             this.rememberVisibleThreat(visible);
             this.locate(visible.position(), now);
         }
@@ -67,6 +124,9 @@ public final class FrostEndermanBrain extends MastermindBrain {
             return;
         }
         if (visible != null) {
+            long engaged=now-this.encounterStartedAt;
+            if(engaged>=120&&this.tryBeginHypothermia(level,visible,now))return;
+            if(engaged>=80&&visible instanceof ServerPlayer player&&this.tryBeginParalysis(level,player,now))return;
             this.tickVisibleCombat(visible);
             this.frost.setHuntState(FrostEnderman.HuntState.PURSUING);
             return;
@@ -150,11 +210,15 @@ public final class FrostEndermanBrain extends MastermindBrain {
 
     @Override
     public void clearEncounter() {
+        this.actionEpoch++;this.pendingTarget=null;this.paralysisRelease=false;this.hypothermiaRelease=false;this.phaseEndsAt=0;this.encounterStartedAt=-1;
         super.clearEncounter();
         FrostParalysis.releaseOwnedBy(this.frost);
         this.sensedPlayer = null;
         this.lastLocated = null;
         this.locatedUntil = 0;
         this.frost.setHuntState(FrostEnderman.HuntState.IDLE);
+        this.frost.setCombatPhase(CombatPhase.IDLE,0);
     }
+    public void writeCooldowns(ValueOutput output){output.putLong("FrostParalysisAfter",this.nextParalysisAt);output.putLong("FrostHypothermiaAfter",this.nextHypothermiaAt);}
+    public void readCooldowns(ValueInput input){long now=this.owner.level().getGameTime();this.nextParalysisAt=Math.min(input.getLongOr("FrostParalysisAfter",0),now+FrostEndermanConfig.paralysisCooldownTicks());this.nextHypothermiaAt=Math.min(input.getLongOr("FrostHypothermiaAfter",0),now+FrostEndermanConfig.hypothermiaCooldownTicks());}
 }

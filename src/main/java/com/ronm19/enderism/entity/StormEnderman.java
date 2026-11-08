@@ -32,7 +32,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.phys.Vec3;
 
-/** #007: three server-authoritative storm abilities with a synchronized, finite local tempest. */
+/** #007: three storm abilities, a finite local hazard field and bounded native world thunder. */
 public final class StormEnderman extends AbstractEnderman {
     public static final TagKey<Biome> SPAWN_BIOMES = TagKey.create(Registries.BIOME,
             Identifier.fromNamespaceAndPath(Enderism.MOD_ID, "spawns_storm_enderman"));
@@ -105,7 +105,7 @@ public final class StormEnderman extends AbstractEnderman {
     }
     @Override protected boolean teleport() { return this.getAbility() == StormEndermanBrain.Ability.NONE && super.teleport(); }
     @Override public void travel(Vec3 input) {
-        if (this.getAbility() != StormEndermanBrain.Ability.NONE) { this.setDeltaMovement(Vec3.ZERO); return; }
+        if (this.getAbility() != StormEndermanBrain.Ability.NONE) { this.setDeltaMovement(0, this.getDeltaMovement().y, 0); super.travel(Vec3.ZERO); return; }
         super.travel(input);
     }
     @Override public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {

@@ -17,6 +17,8 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
@@ -146,6 +148,7 @@ public final class StormEndermanBrain extends MastermindBrain {
             case TEMPEST_SUMMON -> {
                 if (point!=null) {
                     this.storm.setTempest(BlockPos.containing(point),(float)StormEndermanConfig.tempestRadius(),now+StormEndermanConfig.tempestDurationTicks());
+                    beginWorldThunder(level);
                     this.nextTempestSelectionAt=now; this.tempestPendingPoint=null; this.tempestPendingAt=0;
                 }
             }
@@ -232,7 +235,18 @@ public final class StormEndermanBrain extends MastermindBrain {
     private void freezeMovement() {
         this.owner.getNavigation().stop();
         this.owner.getMoveControl().setWantedPosition(this.owner.getX(),this.owner.getY(),this.owner.getZ(),0);
-        this.owner.setDeltaMovement(Vec3.ZERO);
+        this.owner.setDeltaMovement(0,this.owner.getDeltaMovement().y,0);
+    }
+    private static void beginWorldThunder(ServerLevel level) {
+        if (level.dimension()!=Level.OVERWORLD || !level.getGameRules().get(GameRules.ADVANCE_WEATHER)) return;
+        var weather=level.getWeatherData();
+        if (weather.isRaining() && weather.isThundering()) return;
+        // Let native WeatherData own expiration and packets. Never schedule an old restore that
+        // could overwrite a later /weather command, sleep, or another weather controller.
+        int duration=Math.max(120,StormEndermanConfig.tempestDurationTicks());
+        weather.setClearWeatherTime(0);
+        if (!weather.isRaining()) { weather.setRaining(true); weather.setRainTime(duration); }
+        if (!weather.isThundering()) { weather.setThundering(true); weather.setThunderTime(duration); }
     }
     private boolean insideTempest(Vec3 point) {
         Vec3 center=this.storm.getTempestCenter(); double radius=this.storm.getTempestRadius();

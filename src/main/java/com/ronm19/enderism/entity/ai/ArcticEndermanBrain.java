@@ -277,7 +277,7 @@ public final class ArcticEndermanBrain extends MastermindBrain {
     private void freezeMovement() {
         this.owner.getNavigation().stop();
         this.owner.getMoveControl().setWantedPosition(this.owner.getX(), this.owner.getY(), this.owner.getZ(), 0.0);
-        this.owner.setDeltaMovement(Vec3.ZERO);
+        this.owner.setDeltaMovement(0, this.owner.getDeltaMovement().y, 0);
     }
 
     @Override

@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_spectral_enderman",
+  "spawners": {
+    "type": "enderism:spectral_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 12
+  }
+}

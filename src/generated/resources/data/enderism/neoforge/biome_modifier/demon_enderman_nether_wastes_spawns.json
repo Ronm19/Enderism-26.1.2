@@ -1,0 +1,12 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": [
+    "minecraft:nether_wastes"
+  ],
+  "spawners": {
+    "type": "enderism:demon_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 6
+  }
+}

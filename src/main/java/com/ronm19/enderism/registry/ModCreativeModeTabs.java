@@ -25,6 +25,16 @@ public final class ModCreativeModeTabs {
                     }))
                     .build());
 
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ITEMS = TABS.register(
+            "items", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup.enderism.items"))
+                    .icon(() -> ModItems.ENDER_CODEX.get().getDefaultInstance())
+                    .withTabsBefore(SPAWN_EGGS.getKey())
+                    .displayItems((parameters, output) -> ModItems.ITEMS.getEntries().forEach(entry -> {
+                        if (!(entry.get() instanceof SpawnEggItem)) output.accept(entry.get());
+                    }))
+                    .build());
+
     private ModCreativeModeTabs() {
     }
 }

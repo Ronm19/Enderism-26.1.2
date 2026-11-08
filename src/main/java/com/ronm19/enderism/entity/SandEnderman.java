@@ -178,7 +178,7 @@ public final class SandEnderman extends AbstractEnderman {
 
     @Override protected boolean teleport() { return !this.isVeilWindingUp() && super.teleport(); }
     @Override public void travel(Vec3 input) {
-        if (this.isVeilWindingUp()) { this.setDeltaMovement(Vec3.ZERO); return; }
+        if (this.isVeilWindingUp()) { this.setDeltaMovement(0, this.getDeltaMovement().y, 0); super.travel(Vec3.ZERO); return; }
         super.travel(input);
     }
     @Override public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {

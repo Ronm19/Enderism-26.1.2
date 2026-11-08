@@ -1,0 +1,10 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": "#enderism:spawns_sculk_enderman",
+  "spawners": {
+    "type": "enderism:sculk_enderman",
+    "maxCount": 1,
+    "minCount": 1,
+    "weight": 10
+  }
+}

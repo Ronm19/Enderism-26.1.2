@@ -168,7 +168,7 @@ public final class ForestEnderman extends AbstractEnderman {
 
     @Override
     public void travel(Vec3 input) {
-        if (this.isVineWindingUp()) { this.setDeltaMovement(Vec3.ZERO); return; }
+        if (this.isVineWindingUp()) { this.setDeltaMovement(0, this.getDeltaMovement().y, 0); super.travel(Vec3.ZERO); return; }
         super.travel(input);
     }
 

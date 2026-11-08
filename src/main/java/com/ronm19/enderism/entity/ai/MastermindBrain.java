@@ -1,10 +1,12 @@
 package com.ronm19.enderism.entity.ai;
 
 import com.google.common.collect.ImmutableList;
+import com.ronm19.enderism.CombatBalanceConfig;
 import com.ronm19.enderism.entity.AbstractEnderman;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.ActivityData;
 import net.minecraft.world.entity.ai.Brain;
@@ -29,6 +31,7 @@ import org.jspecify.annotations.Nullable;
 public class MastermindBrain extends Behavior<AbstractEnderman> {
     private static final int MEMORY_TICKS = 60;
     protected final AbstractEnderman owner;
+    private final GroupTactics groupTactics;
     protected State state = State.IDLE;
     protected int handledHurtTimestamp = Integer.MIN_VALUE;
     private @Nullable MeleeAttackGoal combat;
@@ -48,6 +51,7 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
                 MemoryModuleType.WALK_TARGET, MemoryStatus.REGISTERED,
                 MemoryModuleType.ATTACK_COOLING_DOWN, MemoryStatus.REGISTERED));
         this.owner = owner;
+        this.groupTactics = new GroupTactics(this, owner);
     }
 
     public static Brain.Provider<AbstractEnderman> provider(MastermindBrain decisions) {
@@ -59,6 +63,9 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
     public State getState() {
         return this.state;
     }
+
+    public final GroupTactics groupTactics() { return this.groupTactics; }
+    public final boolean supportsGroups() { return this.groupTactics.supportsGroups(); }
 
     public @Nullable Vec3 getLastObservedPosition() {
         return this.owner.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
@@ -116,6 +123,7 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
     }
 
     public void clearEncounter() {
+        this.groupTactics.clear();
         this.stopCombat();
         this.stopFloating();
         this.stopAmbient();
@@ -150,6 +158,7 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
     }
 
     protected void rememberVisibleThreat(LivingEntity threat) {
+        this.groupTactics.observe(threat);
         Brain<AbstractEnderman> brain = this.owner.getBrain();
         brain.setMemoryWithExpiry(MemoryModuleType.HURT_BY_ENTITY, threat, this.memoryTicks());
         WalkTarget previous = brain.getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
@@ -189,6 +198,8 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
     }
 
     protected void initializeActuators() {
+        // Every species calls this entry point, including those with their own server AI method.
+        if (this.owner.level() instanceof ServerLevel level) this.groupTactics.beforeBrainTick(level);
         if (this.combat != null) {
             return;
         }
@@ -211,8 +222,18 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
             @Override
             protected void checkAndPerformAttack(LivingEntity target) {
                 if (this.canPerformAttack(target)) {
-                    super.checkAndPerformAttack(target);
-                    owner.getBrain().setMemoryWithExpiry(MemoryModuleType.ATTACK_COOLING_DOWN, true, meleeCooldownTicks());
+                    long previousAttempts = owner.committedMeleeAttempts();
+                    boolean accepted = owner.doHurtTarget(getServerLevel(owner), target);
+                    boolean committed = accepted || owner.committedMeleeAttempts() != previousAttempts;
+                    if (committed) {
+                        this.resetAttackCooldown();
+                        owner.swing(InteractionHand.MAIN_HAND);
+                    }
+                    // A rejected windup can retry soon; real attacks still spend their full interval,
+                    // including hits blocked by shields, native immunity, or other damage listeners.
+                    int cooldown = committed || !CombatBalanceConfig.enabled()
+                            ? meleeCooldownTicks() : CombatBalanceConfig.rejectedAttackRetryTicks();
+                    owner.getBrain().setMemoryWithExpiry(MemoryModuleType.ATTACK_COOLING_DOWN, true, cooldown);
                 }
             }
         };
@@ -243,6 +264,12 @@ public class MastermindBrain extends Behavior<AbstractEnderman> {
         this.stopAmbient();
         this.state = State.COMBAT;
         this.investigationStarted = false;
+        if (this.groupTactics.tickCombat(threat)) {
+            this.stopCombat();
+            this.clearTarget();
+            this.owner.getLookControl().setLookAt(threat, 30.0F, 30.0F);
+            return;
+        }
         this.owner.getBrain().setMemoryWithExpiry(MemoryModuleType.ATTACK_TARGET, threat, this.memoryTicks());
         if (this.owner.getTarget() != threat) {
             this.owner.setTarget(threat);
